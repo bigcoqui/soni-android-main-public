@@ -25,6 +25,10 @@ class End extends MusicBeatState
 		continuePls.setFormat("Arial", 32, FlxColor.WHITE, CENTER, NONE, FlxColor.BLACK);
 		continuePls.scrollFactor.set();
         add(continuePls);
+        
+		    #if android
+		    addVirtualPad(NONE, A);
+		    #end
 
         FlxG.sound.playMusic(Paths.music('freakyMenu'));
     }
