@@ -81,6 +81,10 @@ class Codes extends MusicBeatState
         code.screenCenter(X);
         code.x += 3;
         add(code);
+        
+        #if android
+        addVirtualPad(NONE, A_B);
+        #end
 
         super.create();
     }
