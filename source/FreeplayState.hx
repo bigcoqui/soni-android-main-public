@@ -52,11 +52,12 @@ class FreeplayState extends MusicBeatState
 
 	override function create()
 	{
-		#if MODS_ALLOWED
-		Paths.destroyLoadedImages();
-		#end
+		Paths.clearStoredMemory();
+		Paths.clearUnusedMemory();
 		
+		persistentUpdate = true;
 		PlayState.isStoryMode = false;
+		PlayState.isCode = false;
 		WeekData.reloadWeekFiles(false);
 
 		#if desktop
@@ -64,7 +65,7 @@ class FreeplayState extends MusicBeatState
 		DiscordClient.changePresence("In the Menus", null);
 		#end
 
-		for (i in 0...WeekData.weeksList.length) {
+		/*for (i in 0...WeekData.weeksList.length) {
 			var leWeek:WeekData = WeekData.weeksLoaded.get(WeekData.weeksList[i]);
 			var leSongs:Array<String> = [];
 			var leChars:Array<String> = [];
@@ -85,7 +86,7 @@ class FreeplayState extends MusicBeatState
 				addSong(song[0], i, song[1], FlxColor.fromRGB(colors[0], colors[1], colors[2]));
 			}
 		}
-		WeekData.setDirectoryFromWeek();
+		WeekData.setDirectoryFromWeek();*/
 
 		/*		//KIND OF BROKEN NOW AND ALSO PRETTY USELESS//
 
@@ -98,9 +99,27 @@ class FreeplayState extends MusicBeatState
 			}
 		}*/
 
+		//Soni week
+		addSong('Sonicando', 0, 'soni', FlxColor.fromRGB(0, 14, 226));
+		addSong('Faster Rapper', 0, 'soni', FlxColor.fromRGB(0, 14, 226));
+		addSong('SPED', 0, 'soni', FlxColor.fromRGB(0, 14, 226));
+
+		//bonus codes
+		if(FlxG.save.data.beatedWerhog)
+			addSong('Unleashed', 0, 'werhog', FlxColor.fromRGB(97, 87, 132));
+		if(FlxG.save.data.beatedOu)
+			addSong('ou', 0, 'ou', FlxColor.fromRGB(48, 35, 52));
+		if(FlxG.save.data.beatedNoebeat)
+			addSong('Please', 0, 'neobeat', FlxColor.fromRGB(110, 153, 223));
+		if(FlxG.save.data.beatedBil)
+			addSong('Broken Reality', 0, 'bil', FlxColor.fromRGB(255, 236, 94));
+		if(FlxG.save.data.beatedSonibars)
+			addSong('Sonibars', 0, 'sonibars', FlxColor.fromRGB(54, 0, 217));
+
 		bg = new FlxSprite().loadGraphic(Paths.image('menuDesat'));
 		bg.antialiasing = ClientPrefs.globalAntialiasing;
 		add(bg);
+		bg.screenCenter();
 
 		grpSongs = new FlxTypedGroup<Alphabet>();
 		add(grpSongs);
@@ -111,6 +130,19 @@ class FreeplayState extends MusicBeatState
 			songText.isMenuItem = true;
 			songText.targetY = i;
 			grpSongs.add(songText);
+			
+			if (songText.width > 980)
+			{
+				var textScale:Float = 980 / songText.width;
+				songText.scale.x = textScale;
+				for (letter in songText.lettersArray)
+				{
+					letter.x *= textScale;
+					letter.offset.x *= textScale;
+				}
+				//songText.updateHitbox();
+				//trace(songs[i].songName + ' new scale: ' + textScale);
+			}
 
 			Paths.currentModDirectory = songs[i].folder;
 			var icon:HealthIcon = new HealthIcon(songs[i].songCharacter);
@@ -176,10 +208,10 @@ class FreeplayState extends MusicBeatState
 		add(textBG);
 
 		#if PRELOAD_ALL
-		var leText:String = "Press SPACE / X to listen to the Song / Press CTRL / C to open the Gameplay Changers Menu / Press RESET / Y to Reset your Score and Accuracy.";
+		var leText:String = "Press SPACE to listen to the Song / Press CTRL to open the Gameplay Changers Menu / Press RESET to Reset your Score and Accuracy.";
 		var size:Int = 16;
 		#else
-		var leText:String = "Press CTRL / C to open the Gameplay Changers Menu / Press RESET / Y to Reset your Score and Accuracy.";
+		var leText:String = "Press CTRL to open the Gameplay Changers Menu / Press RESET to Reset your Score and Accuracy.";
 		var size:Int = 18;
 		#end
 		var text:FlxText = new FlxText(textBG.x, textBG.y + 4, FlxG.width, leText, size);
@@ -187,8 +219,8 @@ class FreeplayState extends MusicBeatState
 		text.scrollFactor.set();
 		add(text);
 
-                #if android
-		addVirtualPad(FULL, A_B_C_X_Y);
+    #if android
+		addVirtualPad(FULL, A_B);
 		#end
 
 		super.create();
@@ -196,6 +228,7 @@ class FreeplayState extends MusicBeatState
 
 	override function closeSubState() {
 		changeSelection(0, false);
+		persistentUpdate = true;
 		super.closeSubState();
 	}
 
@@ -222,6 +255,7 @@ class FreeplayState extends MusicBeatState
 
 	var instPlaying:Int = -1;
 	private static var vocals:FlxSound = null;
+	var holdTime:Float = 0;
 	override function update(elapsed:Float)
 	{
 		if (FlxG.sound.music.volume < 0.7)
@@ -252,19 +286,37 @@ class FreeplayState extends MusicBeatState
 		var upP = controls.UI_UP_P;
 		var downP = controls.UI_DOWN_P;
 		var accepted = controls.ACCEPT;
-	        var space = FlxG.keys.justPressed.SPACE#if android || _virtualpad.buttonX.justPressed #end;
-		var ctrl = FlxG.keys.justPressed.CONTROL#if android || _virtualpad.buttonC.justPressed #end;
+	  var space = FlxG.keys.justPressed.SPACE;
+		var ctrl = FlxG.keys.justPressed.CONTROL;
 
 		var shiftMult:Int = 1;
 		if(FlxG.keys.pressed.SHIFT) shiftMult = 3;
 
-		if (upP)
+		if(songs.length > 1)
 		{
-			changeSelection(-shiftMult);
-		}
-		if (downP)
-		{
-			changeSelection(shiftMult);
+			if (upP)
+			{
+				changeSelection(-shiftMult);
+				holdTime = 0;
+			}
+			if (downP)
+			{
+				changeSelection(shiftMult);
+				holdTime = 0;
+			}
+
+			if(controls.UI_DOWN || controls.UI_UP)
+			{
+				var checkLastHold:Int = Math.floor((holdTime - 0.5) * 10);
+				holdTime += elapsed;
+				var checkNewHold:Int = Math.floor((holdTime - 0.5) * 10);
+
+				if(holdTime > 0.5 && checkNewHold - checkLastHold > 0)
+				{
+					changeSelection((checkNewHold - checkLastHold) * (controls.UI_UP ? -shiftMult : shiftMult));
+					changeDiff();
+				}
+			}
 		}
 
 		if (controls.UI_LEFT_P)
@@ -275,6 +327,7 @@ class FreeplayState extends MusicBeatState
 
 		if (controls.BACK)
 		{
+			persistentUpdate = false;
 			if(colorTween != null) {
 				colorTween.cancel();
 			}
@@ -284,6 +337,7 @@ class FreeplayState extends MusicBeatState
 
 		if(ctrl)
 		{
+			persistentUpdate = false;
 			openSubState(new GameplayChangersSubstate());
 		}
 		else if(space)
@@ -314,6 +368,7 @@ class FreeplayState extends MusicBeatState
 
 		else if (accepted)
 		{
+			persistentUpdate = false;
 			var songLowercase:String = Paths.formatToSongPath(songs[curSelected].songName);
 			var poop:String = Highscore.formatSong(songLowercase, curDifficulty);
 			/*#if MODS_ALLOWED
@@ -329,6 +384,7 @@ class FreeplayState extends MusicBeatState
 
 			PlayState.SONG = Song.loadFromJson(poop, songLowercase);
 			PlayState.isStoryMode = false;
+			PlayState.isCode = false;
 			PlayState.storyDifficulty = curDifficulty;
 
 			trace('CURRENT WEEK: ' + WeekData.getWeekFileName());
@@ -346,8 +402,9 @@ class FreeplayState extends MusicBeatState
 					
 			destroyFreeplayVocals();
 		}
-		else if(controls.RESET#if android || _virtualpad.buttonY.justPressed #end)
+		else if(controls.RESET)
 		{
+			persistentUpdate = false;
 			openSubState(new ResetScoreSubState(songs[curSelected].songName, curDifficulty, songs[curSelected].songCharacter));
 			FlxG.sound.play(Paths.sound('scrollMenu'));
 		}
@@ -379,7 +436,8 @@ class FreeplayState extends MusicBeatState
 		#end
 
 		PlayState.storyDifficulty = curDifficulty;
-		diffText.text = '< ' + CoolUtil.difficultyString() + ' >';
+		diffText.text = songs[curSelected].songCharacter;
+		diffText.text = diffText.text.toUpperCase();
 		positionHighscore();
 	}
 
@@ -465,7 +523,14 @@ class FreeplayState extends MusicBeatState
 			}
 		}
 		
-		curDifficulty = Math.round(Math.max(0, CoolUtil.defaultDifficulties.indexOf(CoolUtil.defaultDifficulty)));
+		if(CoolUtil.difficulties.contains(CoolUtil.defaultDifficulty))
+		{
+			curDifficulty = Math.round(Math.max(0, CoolUtil.defaultDifficulties.indexOf(CoolUtil.defaultDifficulty)));
+		}
+		else
+		{
+			curDifficulty = 0;
+		}
 		var newPos:Int = CoolUtil.difficulties.indexOf(lastDifficultyName);
 		//trace('Pos of ' + lastDifficultyName + ' is ' + newPos);
 		if(newPos > -1)
